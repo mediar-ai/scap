@@ -75,11 +75,11 @@ pub struct Capturer {
 
 impl Capturer {
     /// Create a new capturer instance with the provided options
-    pub fn new(options: Options) -> Capturer {
+    pub fn new(options: Options) -> Result<Capturer, String> {
         let (tx, rx) = mpsc::channel::<Frame>();
-        let engine = engine::Engine::new(&options, tx);
+        let engine = engine::Engine::new(&options, tx)?;
 
-        Capturer { engine, rx }
+        Ok(Capturer { engine, rx })
     }
 
     // TODO

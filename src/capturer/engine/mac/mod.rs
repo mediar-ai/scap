@@ -91,12 +91,14 @@ impl StreamOutput for Capturer {
     }
 }
 
-pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
+pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> Result<SCStream, String> {
     // If no target is specified, capture the main display
     let target = options
         .target
         .clone()
         .unwrap_or_else(|| Target::Display(targets::get_main_display()));
+
+    println!("Debug: Selected target: {:?}", target);
 
     let sc_shareable_content = SCShareableContent::current();
 
@@ -107,10 +109,11 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
                 .windows
                 .into_iter()
                 .find(|sc_win| sc_win.window_id == window.id)
-                .unwrap();
+                .ok_or_else(|| format!("Window with id {} not found", window.id))?;
+
+            println!("Debug: Found SCWindow: {:?}", sc_window);
 
             // Return a DesktopIndependentWindow
-            // https://developer.apple.com/documentation/screencapturekit/sccontentfilter/3919804-init
             InitParams::DesktopIndependentWindow(sc_window)
         }
         Target::Display(display) => {
@@ -119,7 +122,9 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
                 .displays
                 .into_iter()
                 .find(|sc_dis| sc_dis.display_id == display.id)
-                .unwrap();
+                .ok_or_else(|| format!("Display with id {} not found", display.id))?;
+
+            println!("Debug: Found SCDisplay: {:?}", sc_display);
 
             match &options.excluded_targets {
                 None => InitParams::Display(sc_display),
@@ -129,14 +134,8 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
                         .into_iter()
                         .filter(|window| {
                             excluded_targets
-                                .into_iter()
-                                .find(|excluded_target| match excluded_target {
-                                    Target::Window(excluded_window) => {
-                                        excluded_window.id == window.window_id
-                                    }
-                                    _ => false,
-                                })
-                                .is_some()
+                                .iter()
+                                .any(|excluded_target| matches!(excluded_target, Target::Window(excluded_window) if excluded_window.id == window.window_id))
                         })
                         .collect();
 
@@ -170,6 +169,15 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
 
     let [width, height] = get_output_frame_size(options);
 
+    // Ensure width and height are not zero. This ensures that we always have a valid width and height for the stream configuration.
+    let width = width.max(1);
+    let height = height.max(1);
+
+    println!("Debug: width = {}, height = {}", width, height);
+    println!("Debug: source_rect = {:?}", source_rect);
+    println!("Debug: pixel_format = {:?}", pixel_format);
+    println!("Debug: fps = {}", options.fps);
+
     let stream_config = SCStreamConfiguration {
         width,
         height,
@@ -191,7 +199,7 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
         SCStreamOutputType::Screen,
     );
 
-    stream
+    Ok(stream)
 }
 
 pub fn get_output_frame_size(options: &Options) -> [u32; 2] {
@@ -205,23 +213,21 @@ pub fn get_output_frame_size(options: &Options) -> [u32; 2] {
 
     // Calculate the output height & width based on the required resolution
     // Output width and height need to be multiplied by scale (or dpi)
-    let mut output_width = (source_rect.size.width as u32) * (scale_factor as u32);
-    let mut output_height = (source_rect.size.height as u32) * (scale_factor as u32);
-    // 1200x800
+    let mut output_width = (source_rect.size.width as u32).max(4000) * (scale_factor as u32);
+    let mut output_height = (source_rect.size.height as u32).max(4000) * (scale_factor as u32);
+
     match options.output_resolution {
         Resolution::Captured => {}
         _ => {
             let [resolved_width, resolved_height] = options
                 .output_resolution
                 .value((source_rect.size.width as f32) / (source_rect.size.height as f32));
-            // 1280 x 853
-            output_width = cmp::min(output_width, resolved_width);
-            output_height = cmp::min(output_height, resolved_height);
+            output_width = cmp::min(output_width, resolved_width).max(4000);
+            output_height = cmp::min(output_height, resolved_height).max(4000);
         }
     }
 
-    output_width -= output_width % 2;
-    output_height -= output_height % 2;
+    println!("Debug: Calculated output frame size: width = {}, height = {}", output_width, output_height);
 
     [output_width, output_height]
 }
@@ -233,6 +239,7 @@ pub fn get_crop_area(options: &Options) -> Area {
         .unwrap_or_else(|| Target::Display(targets::get_main_display()));
 
     let (width, height) = targets::get_target_dimensions(&target);
+    println!("Debug: Target dimensions: width = {}, height = {}", width, height);
 
     options
         .crop_area

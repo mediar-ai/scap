@@ -33,6 +33,7 @@ pub fn get_all_targets() -> Vec<Target> {
             id,
             title,
             raw_handle: HWND(window.as_raw_hwnd()),
+            is_visible: window.is_visible().unwrap_or(false),
         });
         targets.push(target);
     }

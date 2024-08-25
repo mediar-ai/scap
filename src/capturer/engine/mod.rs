@@ -25,40 +25,47 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(options: &Options, tx: mpsc::Sender<Frame>) -> Engine {
+    pub fn new(options: &Options, tx: mpsc::Sender<Frame>) -> Result<Engine, String> {
         #[cfg(target_os = "macos")]
         {
-            let mac = mac::create_capturer(&options, tx);
-            return Engine {
+            let mac = mac::create_capturer(&options, tx)?;
+            return Ok(Engine {
                 mac,
                 options: (*options).clone(),
-            };
+            });
         }
 
         #[cfg(target_os = "windows")]
         {
             let win = win::create_capturer(&options, tx);
-            return Engine {
+            return Ok(Engine {
                 win,
                 options: (*options).clone(),
-            };
+            });
         }
 
         #[cfg(target_os = "linux")]
         {
             let linux = linux::create_capturer(&options, tx);
-            return Engine {
+            return Ok(Engine {
                 linux,
                 options: (*options).clone(),
-            };
+            });
         }
     }
 
     pub fn start(&mut self) {
         #[cfg(target_os = "macos")]
         {
-            // self.mac.add_output(Capturer::new(tx));
-            self.mac.start_capture().expect("Failed to start capture");
+            match self.mac.start_capture() {
+                Ok(_) => println!("Capture started successfully"),
+                Err(e) => {
+                    eprintln!("Failed to start capture: {:?}", e);
+                    if let Some(error_code) = e.to_string().split(':').next() {
+                        eprintln!("Error code: {}", error_code);
+                    }
+                }
+            }
         }
 
         #[cfg(target_os = "windows")]

@@ -2,10 +2,12 @@
 // Refer to `lib.rs` for the library source code
 
 use scap::{
-    capturer::{Area, Capturer, Options, Point, Size},
+    capturer::{Capturer, Options},
     frame::Frame,
     Target,
 };
+use image::{ImageBuffer, Rgba};
+use std::path::Path;
 
 fn main() {
     // Check if the platform is supported
@@ -24,8 +26,32 @@ fn main() {
         }
     }
 
-    // // Get recording targets
-    // let targets = scap::get_all_targets();
+    // Get recording targets
+    let targets = scap::get_all_targets();
+    println!("Available targets:");
+    for (i, target) in targets.iter().enumerate() {
+        println!("{}: {:?}", i, target);
+    }
+
+    // Find the specific window with id 76 and title "mod.rs — screenpipe"
+    let target_window = targets.iter().find_map(|target| {
+        if let Target::Window(window) = target {
+            if window.id == 76 {
+                Some(window.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    });
+
+    if target_window.is_none() {
+        println!("❌ Target window not found");
+        return;
+    }
+
+    println!("Selected target window: {:?}", target_window);
 
     // Create Options
     let options = Options {
@@ -35,82 +61,52 @@ fn main() {
         excluded_targets: None,
         output_type: scap::frame::FrameType::BGRAFrame,
         output_resolution: scap::capturer::Resolution::_720p,
-        crop_area: Some(Area {
-            origin: Point { x: 0.0, y: 0.0 },
-            size: Size {
-                width: 500.0,
-                height: 500.0,
-            },
-        }),
+        target: target_window.map(Target::Window),
+        crop_area: None, // Remove the crop area for now
         ..Default::default()
     };
 
+    println!("Capture options: {:?}", options);
+
     // Create Recorder with options
-    let mut recorder = Capturer::new(options);
+    let mut recorder = Capturer::new(options).expect("Failed to create capturer");
 
     // Start Capture
     recorder.start_capture();
+    println!("Capture started successfully");
 
-    // Capture 100 frames
-    let mut start_time: u64 = 0;
-    for i in 0..100 {
-        let frame = recorder.get_next_frame().expect("Error");
+    // Capture 1 frame
+    let frame = recorder.get_next_frame().expect("Error getting frame");
 
-        match frame {
-            Frame::YUVFrame(frame) => {
-                println!(
-                    "Recieved YUV frame {} of width {} and height {} and pts {}",
-                    i, frame.width, frame.height, frame.display_time
-                );
+    match frame {
+        Frame::BGRA(frame) => {
+            println!(
+                "Received BGRA frame of width {} and height {} and time {}",
+                frame.width,
+                frame.height,
+                frame.display_time
+            );
+
+            // Check if frame data is empty
+            if frame.data.is_empty() {
+                println!("❌ Frame data is empty");
+                return;
             }
-            Frame::BGR0(frame) => {
-                println!(
-                    "Received BGR0 frame of width {} and height {}",
-                    frame.width, frame.height
-                );
-            }
-            Frame::RGB(frame) => {
-                if start_time == 0 {
-                    start_time = frame.display_time;
-                }
-                println!(
-                    "Recieved RGB frame {} of width {} and height {} and time {}",
-                    i,
-                    frame.width,
-                    frame.height,
-                    frame.display_time - start_time
-                );
-            }
-            Frame::RGBx(frame) => {
-                println!(
-                    "Recieved RGBx frame of width {} and height {}",
-                    frame.width, frame.height
-                );
-            }
-            Frame::XBGR(frame) => {
-                println!(
-                    "Recieved xRGB frame of width {} and height {}",
-                    frame.width, frame.height
-                );
-            }
-            Frame::BGRx(frame) => {
-                println!(
-                    "Recieved BGRx frame of width {} and height {}",
-                    frame.width, frame.height
-                );
-            }
-            Frame::BGRA(frame) => {
-                if start_time == 0 {
-                    start_time = frame.display_time;
-                }
-                println!(
-                    "Recieved BGRA frame {} of width {} and height {} and time {}",
-                    i,
-                    frame.width,
-                    frame.height,
-                    frame.display_time - start_time
-                );
-            }
+
+            // Save the frame as a PNG file
+            let img = ImageBuffer::<Rgba<u8>, _>::from_raw(
+                frame.width as u32,
+                frame.height as u32,
+                frame.data,
+            ).expect("Failed to create image buffer");
+
+            let file_name = "captured_frame.png";
+            img.save(Path::new(file_name)).expect("Failed to save image");
+
+            println!("Saved frame to {}", file_name);
+        }
+        _ => {
+            println!("Received unsupported frame type");
         }
     }
 

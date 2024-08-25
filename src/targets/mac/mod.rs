@@ -59,10 +59,14 @@ pub fn get_all_targets() -> Vec<Target> {
             let id = window.window_id;
             let title = window.title.expect("Window title not found");
             let raw_handle: CGWindowID = id;
+            let is_visible = window.is_on_screen;
+
+            // println!("Window: '{}' - Visible: {}", title, is_visible);
 
             let target = Target::Window(super::Window {
                 id,
                 title,
+                is_visible,
                 raw_handle,
             });
             targets.push(target);
@@ -106,10 +110,12 @@ pub fn get_target_dimensions(target: &Target) -> (u64, u64) {
             let ns_app: id = NSApp();
             let ns_window: id = msg_send![ns_app, windowWithWindowNumber: cg_win_id as NSUInteger];
             let frame: NSRect = msg_send![ns_window, frame];
+            println!("Debug: Window dimensions: width = {}, height = {}", frame.size.width, frame.size.height);
             (frame.size.width as u64, frame.size.height as u64)
         },
         Target::Display(display) => {
             let mode = display.raw_handle.display_mode().unwrap();
+            println!("Debug: Display dimensions: width = {}, height = {}", mode.width(), mode.height());
             (mode.width(), mode.height())
         }
     }

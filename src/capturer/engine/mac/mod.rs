@@ -207,8 +207,9 @@ pub fn get_output_frame_size(options: &Options) -> [u32; 2] {
 
     // Calculate the output height & width based on the required resolution
     // Output width and height need to be multiplied by scale (or dpi)
-    let mut output_width = (source_rect.size.width as u32) * (scale_factor as u32);
-    let mut output_height = (source_rect.size.height as u32) * (scale_factor as u32);
+    let mut output_width = (source_rect.size.width as u32).max(4000) * (scale_factor as u32);
+    let mut output_height = (source_rect.size.height as u32).max(4000) * (scale_factor as u32);
+
     // 1200x800
     match options.output_resolution {
         Resolution::Captured => {}
@@ -217,8 +218,8 @@ pub fn get_output_frame_size(options: &Options) -> [u32; 2] {
                 .output_resolution
                 .value((source_rect.size.width as f32) / (source_rect.size.height as f32));
             // 1280 x 853
-            output_width = cmp::min(output_width, resolved_width);
-            output_height = cmp::min(output_height, resolved_height);
+            output_width = cmp::min(output_width, resolved_width).max(4000);
+            output_height = cmp::min(output_height, resolved_height).max(4000);
         }
     }
 

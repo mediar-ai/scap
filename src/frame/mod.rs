@@ -66,19 +66,20 @@ pub struct BGRAFrame {
 
 #[derive(Debug, Clone)]
 pub struct FrameMetadata {
-    pub app_name: Option<String>,
-    pub window_name: Option<String>,
+    pub is_active: bool,
+    pub app_name: String,
+    pub window_name: String,
 }
 
 #[derive(Debug, Clone)]
 pub enum Frame {
-    YUVFrame(YUVFrame, FrameMetadata),
-    RGB(RGBFrame, FrameMetadata),
-    RGBx(RGBxFrame, FrameMetadata),
-    XBGR(XBGRFrame, FrameMetadata),
-    BGRx(BGRxFrame, FrameMetadata),
-    BGR0(BGRFrame, FrameMetadata),
-    BGRA(BGRAFrame, FrameMetadata),
+    YUVFrame(YUVFrame, Option<FrameMetadata>),
+    RGB(RGBFrame, Option<FrameMetadata>),
+    RGBx(RGBxFrame, Option<FrameMetadata>),
+    XBGR(XBGRFrame, Option<FrameMetadata>),
+    BGRx(BGRxFrame, Option<FrameMetadata>),
+    BGR0(BGRFrame, Option<FrameMetadata>),
+    BGRA(BGRAFrame, Option<FrameMetadata>),
 }
 
 #[derive(Debug, Clone, Copy, Default)]

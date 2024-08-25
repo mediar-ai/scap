@@ -27,20 +27,22 @@ fn main() {
     // Get recording targets
     let targets = scap::get_all_targets();
     let windows: Vec<Target> = targets
+        .clone()
         .into_iter()
         .filter(|target| matches!(target, Target::Window(_)))
         .collect();
     println!("windows: {:?}", windows);
-    let window = windows
-        .iter()
-        .find(|target| {
-            if let Target::Window(window) = target {
-                window.title == "Cursor"
+    let target_window = targets.iter().find_map(|target| {
+        if let Target::Window(window) = target {
+            if window.title.to_lowercase().contains("cursor") {
+                Some(window.clone())
             } else {
-                false
+                None
             }
-        })
-        .expect("No window found");
+        } else {
+            None
+        }
+    });
 
     // Create Options
     let options = Options {
@@ -48,16 +50,10 @@ fn main() {
         show_cursor: true,
         show_highlight: true,
         excluded_targets: None,
-        target: Some(window.clone()),
+        crop_area: None,
+        target: target_window.map(Target::Window),
         output_type: scap::frame::FrameType::BGRAFrame,
         output_resolution: scap::capturer::Resolution::_720p,
-        crop_area: Some(Area {
-            origin: Point { x: 0.0, y: 0.0 },
-            size: Size {
-                width: 500.0,
-                height: 500.0,
-            },
-        }),
         ..Default::default()
     };
 
@@ -78,16 +74,22 @@ fn main() {
                     "Recieved YUV frame {} of width {} and height {} and pts {}",
                     i, frame.width, frame.height, frame.display_time
                 );
-                println!("App name: {:?}", metadata.app_name);
-                println!("Window name: {:?}", metadata.window_name);
+                println!("App name: {:?}", metadata.as_ref().map(|m| &m.app_name));
+                println!(
+                    "Window name: {:?}",
+                    metadata.as_ref().map(|m| &m.window_name)
+                );
             }
             Frame::BGR0(frame, metadata) => {
                 println!(
                     "Received BGR0 frame of width {} and height {}",
                     frame.width, frame.height
                 );
-                println!("App name: {:?}", metadata.app_name);
-                println!("Window name: {:?}", metadata.window_name);
+                println!("App name: {:?}", metadata.as_ref().map(|m| &m.app_name));
+                println!(
+                    "Window name: {:?}",
+                    metadata.as_ref().map(|m| &m.window_name)
+                );
             }
             Frame::RGB(frame, metadata) => {
                 if start_time == 0 {
@@ -100,32 +102,44 @@ fn main() {
                     frame.height,
                     frame.display_time - start_time
                 );
-                println!("App name: {:?}", metadata.app_name);
-                println!("Window name: {:?}", metadata.window_name);
+                println!("App name: {:?}", metadata.as_ref().map(|m| &m.app_name));
+                println!(
+                    "Window name: {:?}",
+                    metadata.as_ref().map(|m| &m.window_name)
+                );
             }
             Frame::RGBx(frame, metadata) => {
                 println!(
                     "Recieved RGBx frame of width {} and height {}",
                     frame.width, frame.height
                 );
-                println!("App name: {:?}", metadata.app_name);
-                println!("Window name: {:?}", metadata.window_name);
+                println!("App name: {:?}", metadata.as_ref().map(|m| &m.app_name));
+                println!(
+                    "Window name: {:?}",
+                    metadata.as_ref().map(|m| &m.window_name)
+                );
             }
             Frame::XBGR(frame, metadata) => {
                 println!(
                     "Recieved xRGB frame of width {} and height {}",
                     frame.width, frame.height
                 );
-                println!("App name: {:?}", metadata.app_name);
-                println!("Window name: {:?}", metadata.window_name);
+                println!("App name: {:?}", metadata.as_ref().map(|m| &m.app_name));
+                println!(
+                    "Window name: {:?}",
+                    metadata.as_ref().map(|m| &m.window_name)
+                );
             }
             Frame::BGRx(frame, metadata) => {
                 println!(
                     "Recieved BGRx frame of width {} and height {}",
                     frame.width, frame.height
                 );
-                println!("App name: {:?}", metadata.app_name);
-                println!("Window name: {:?}", metadata.window_name);
+                println!("App name: {:?}", metadata.as_ref().map(|m| &m.app_name));
+                println!(
+                    "Window name: {:?}",
+                    metadata.as_ref().map(|m| &m.window_name)
+                );
             }
             Frame::BGRA(frame, metadata) => {
                 if start_time == 0 {
@@ -138,8 +152,11 @@ fn main() {
                     frame.height,
                     frame.display_time - start_time
                 );
-                println!("App name: {:?}", metadata.app_name);
-                println!("Window name: {:?}", metadata.window_name);
+                println!("App name: {:?}", metadata.as_ref().map(|m| &m.app_name));
+                println!(
+                    "Window name: {:?}",
+                    metadata.as_ref().map(|m| &m.window_name)
+                );
             }
         }
     }

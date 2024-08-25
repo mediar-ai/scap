@@ -46,10 +46,10 @@ impl Capturer {
         }
     }
 
-    fn get_real_time_metadata(&self) -> FrameMetadata {
+    fn get_real_time_metadata(&self) -> Option<FrameMetadata> {
         let sc_shareable_content = SCShareableContent::current();
 
-        println!("Target: {:?}", self.target);
+        println!("get_real_time_metadata: looking for id{:?} ", self.target);
         match &self.target {
             Target::Window(window) => {
                 if let Some(sc_window) = sc_shareable_content
@@ -57,24 +57,20 @@ impl Capturer {
                     .into_iter()
                     .find(|sc_win| sc_win.window_id == window.id)
                 {
-                    FrameMetadata {
-                        window_name: sc_window.title,
+                    Some(FrameMetadata {
+                        is_active: sc_window.is_active,
+                        window_name: sc_window.title.unwrap_or_default(),
                         app_name: sc_window
                             .owning_application
                             .as_ref()
-                            .and_then(|app| app.application_name.as_deref().map(|s| s.to_string())),
-                    }
+                            .and_then(|app| app.application_name.as_deref().map(|s| s.to_string()))
+                            .unwrap(),
+                    })
                 } else {
-                    FrameMetadata {
-                        window_name: None,
-                        app_name: None,
-                    }
+                    None
                 }
             }
-            Target::Display(_) => FrameMetadata {
-                window_name: None,
-                app_name: None,
-            },
+            Target::Display(_) => None,
         }
     }
 }
@@ -120,10 +116,7 @@ impl StreamOutput for Capturer {
                                     height: 0,
                                     data: vec![],
                                 };
-                                let metadata = FrameMetadata {
-                                    window_name: None,
-                                    app_name: None,
-                                };
+                                let metadata = None;
                                 self.tx.send(Frame::BGRA(frame, metadata)).unwrap_or(());
                             }
                             _ => {}
@@ -138,11 +131,13 @@ impl StreamOutput for Capturer {
 }
 
 pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
+    println!("Creating capturer w options: {:?}", options);
     let target = options
         .target
         .clone()
         .unwrap_or_else(|| Target::Display(targets::get_main_display()));
 
+    println!("Creating capturer for target: {:?}", target);
     let sc_shareable_content = SCShareableContent::current();
 
     let params = match &target {

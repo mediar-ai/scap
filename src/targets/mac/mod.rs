@@ -59,10 +59,14 @@ pub fn get_all_targets() -> Vec<Target> {
             let id = window.window_id;
             let title = window.title.expect("Window title not found");
             let raw_handle: CGWindowID = id;
+            let is_visible = window.is_on_screen;
+
+            // println!("Window: '{}' - Visible: {}", title, is_visible);
 
             let target = Target::Window(super::Window {
                 id,
                 title,
+                is_visible,
                 raw_handle,
             });
             targets.push(target);

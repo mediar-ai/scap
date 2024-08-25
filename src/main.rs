@@ -25,8 +25,9 @@ fn main() {
     }
 
     // // Get recording targets
-    // let targets = scap::get_all_targets();
-
+    let targets = scap::get_all_targets();
+    println!("Targets from get_all_targets: {:?}", targets);
+    
     // Create Options
     let options = Options {
         fps: 60,

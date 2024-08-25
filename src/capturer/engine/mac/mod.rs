@@ -14,7 +14,7 @@ use screencapturekit::{
 use screencapturekit_sys::os_types::base::{CMTime, CMTimeScale};
 use screencapturekit_sys::os_types::geometry::{CGPoint, CGRect, CGSize};
 
-use crate::frame::{Frame, FrameMetadata, FrameType};
+use crate::frame::{Frame, FrameType};
 use crate::targets::Target;
 use crate::{capturer::Resolution, targets};
 use crate::{
@@ -34,44 +34,11 @@ impl StreamErrorHandler for ErrorHandler {
 pub struct Capturer {
     pub tx: mpsc::Sender<Frame>,
     pub output_type: FrameType,
-    pub target: Target,
 }
 
 impl Capturer {
-    pub fn new(tx: mpsc::Sender<Frame>, output_type: FrameType, target: Target) -> Self {
-        Capturer {
-            tx,
-            output_type,
-            target,
-        }
-    }
-
-    fn get_real_time_metadata(&self) -> Option<FrameMetadata> {
-        let sc_shareable_content = SCShareableContent::current();
-
-        println!("get_real_time_metadata: looking for id{:?} ", self.target);
-        match &self.target {
-            Target::Window(window) => {
-                if let Some(sc_window) = sc_shareable_content
-                    .windows
-                    .into_iter()
-                    .find(|sc_win| sc_win.window_id == window.id)
-                {
-                    Some(FrameMetadata {
-                        is_active: sc_window.is_active,
-                        window_name: sc_window.title.unwrap_or_default(),
-                        app_name: sc_window
-                            .owning_application
-                            .as_ref()
-                            .and_then(|app| app.application_name.as_deref().map(|s| s.to_string()))
-                            .unwrap(),
-                    })
-                } else {
-                    None
-                }
-            }
-            Target::Display(_) => None,
-        }
+    pub fn new(tx: mpsc::Sender<Frame>, output_type: FrameType) -> Self {
+        Capturer { tx, output_type }
     }
 }
 
@@ -83,23 +50,22 @@ impl StreamOutput for Capturer {
 
                 match frame_status {
                     SCFrameStatus::Complete | SCFrameStatus::Started => unsafe {
-                        let metadata = self.get_real_time_metadata();
                         let frame = match self.output_type {
                             FrameType::YUVFrame => {
                                 let yuvframe = pixelformat::create_yuv_frame(sample).unwrap();
-                                Frame::YUVFrame(yuvframe, metadata)
+                                Frame::YUVFrame(yuvframe)
                             }
                             FrameType::RGB => {
                                 let rgbframe = pixelformat::create_rgb_frame(sample).unwrap();
-                                Frame::RGB(rgbframe, metadata)
+                                Frame::RGB(rgbframe)
                             }
                             FrameType::BGR0 => {
                                 let bgrframe = pixelformat::create_bgr_frame(sample).unwrap();
-                                Frame::BGR0(bgrframe, metadata)
+                                Frame::BGR0(bgrframe)
                             }
                             FrameType::BGRAFrame => {
                                 let bgraframe = pixelformat::create_bgra_frame(sample).unwrap();
-                                Frame::BGRA(bgraframe, metadata)
+                                Frame::BGRA(bgraframe)
                             }
                         };
                         self.tx.send(frame).unwrap_or(());
@@ -116,8 +82,7 @@ impl StreamOutput for Capturer {
                                     height: 0,
                                     data: vec![],
                                 };
-                                let metadata = None;
-                                self.tx.send(Frame::BGRA(frame, metadata)).unwrap_or(());
+                                self.tx.send(Frame::BGRA(frame)).unwrap_or(());
                             }
                             _ => {}
                         }
@@ -131,13 +96,11 @@ impl StreamOutput for Capturer {
 }
 
 pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
-    println!("Creating capturer w options: {:?}", options);
     let target = options
         .target
         .clone()
         .unwrap_or_else(|| Target::Display(targets::get_main_display()));
 
-    println!("Creating capturer for target: {:?}", target);
     let sc_shareable_content = SCShareableContent::current();
 
     let params = match &target {
@@ -206,6 +169,10 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
 
     let [width, height] = get_output_frame_size(options);
 
+    // Ensure width and height are not zero. This ensures that we always have a valid width and height for the stream configuration.
+    let width = width.max(1);
+    let height = height.max(1);
+
     let stream_config = SCStreamConfiguration {
         width,
         height,
@@ -223,7 +190,7 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
 
     let mut stream = SCStream::new(filter, stream_config, ErrorHandler);
     stream.add_output(
-        Capturer::new(tx, options.output_type, target),
+        Capturer::new(tx, options.output_type),
         SCStreamOutputType::Screen,
     );
 

@@ -47,6 +47,7 @@ pub fn get_all_targets() -> Vec<Target> {
         let target = Target::Display(super::Display {
             id,
             title,
+            is_default: raw_handle.is_main(),
             raw_handle,
         });
 
@@ -63,6 +64,10 @@ pub fn get_all_targets() -> Vec<Target> {
             let target = Target::Window(super::Window {
                 id,
                 title,
+                is_active: window.is_active,
+                owning_application: window
+                    .owning_application
+                    .and_then(|app| app.application_name),
                 raw_handle,
             });
             targets.push(target);
@@ -79,6 +84,7 @@ pub fn get_main_display() -> Display {
     Display {
         id,
         title,
+        is_default: true,
         raw_handle: CGDisplay::new(id),
     }
 }

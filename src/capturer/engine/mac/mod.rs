@@ -14,10 +14,13 @@ use screencapturekit::{
 use screencapturekit_sys::os_types::base::{CMTime, CMTimeScale};
 use screencapturekit_sys::os_types::geometry::{CGPoint, CGRect, CGSize};
 
-use crate::{capturer::{Area, Options, Point, Size}, frame::BGRAFrame};
 use crate::frame::{Frame, FrameType};
 use crate::targets::Target;
 use crate::{capturer::Resolution, targets};
+use crate::{
+    capturer::{Area, Options, Point, Size},
+    frame::BGRAFrame,
+};
 
 mod pixelformat;
 
@@ -71,7 +74,8 @@ impl StreamOutput for Capturer {
                         // Quick hack - just send an empty frame, and the caller can figure out how to handle it
                         match self.output_type {
                             FrameType::BGRAFrame => {
-                                let display_time = sample.sys_ref.get_presentation_timestamp().value as u64;
+                                let display_time =
+                                    sample.sys_ref.get_presentation_timestamp().value as u64;
                                 let frame = BGRAFrame {
                                     display_time,
                                     width: 0,
@@ -79,10 +83,10 @@ impl StreamOutput for Capturer {
                                     data: vec![],
                                 };
                                 self.tx.send(Frame::BGRA(frame)).unwrap_or(());
-                            },
+                            }
                             _ => {}
                         }
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -92,7 +96,6 @@ impl StreamOutput for Capturer {
 }
 
 pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
-    // If no target is specified, capture the main display
     let target = options
         .target
         .clone()
@@ -100,21 +103,17 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
 
     let sc_shareable_content = SCShareableContent::current();
 
-    let params = match target {
+    let params = match &target {
         Target::Window(window) => {
-            // Get SCWindow from window id
             let sc_window = sc_shareable_content
                 .windows
                 .into_iter()
                 .find(|sc_win| sc_win.window_id == window.id)
                 .unwrap();
 
-            // Return a DesktopIndependentWindow
-            // https://developer.apple.com/documentation/screencapturekit/sccontentfilter/3919804-init
             InitParams::DesktopIndependentWindow(sc_window)
         }
         Target::Display(display) => {
-            // Get SCDisplay from display id
             let sc_display = sc_shareable_content
                 .displays
                 .into_iter()
@@ -170,6 +169,10 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
 
     let [width, height] = get_output_frame_size(options);
 
+    // Ensure width and height are not zero. This ensures that we always have a valid width and height for the stream configuration.
+    let width = width.max(1);
+    let height = height.max(1);
+
     let stream_config = SCStreamConfiguration {
         width,
         height,
@@ -193,7 +196,6 @@ pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> SCStream {
 
     stream
 }
-
 pub fn get_output_frame_size(options: &Options) -> [u32; 2] {
     let target = options
         .target

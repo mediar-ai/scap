@@ -4,7 +4,6 @@
 use scap::{
     capturer::{Area, Capturer, Options, Point, Size},
     frame::Frame,
-    Target,
 };
 
 fn main() {
